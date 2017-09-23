@@ -27,7 +27,7 @@ install:
 
 before_script:
   - mkdir build && cd build
-  - cmake -DTY_CONFIG_VARIANT=$CONFIG_VARIANT -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE $CMAKE_FLAGS ..
+  - cmake -DCONFIG_VARIANT=$CONFIG_VARIANT -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE $CMAKE_FLAGS ..
 script:
   - make
   - if [[ "$INSTALLER" == "osx" ]]; then cpack; fi

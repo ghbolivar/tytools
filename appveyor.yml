@@ -1,9 +1,3 @@
-branches:
-  only:
-    - master
-    - /^test-.*$/
-    - /^variant-.*$/
-
 version: '{build}'
 
 os: Visual Studio 2015
@@ -17,13 +11,13 @@ environment:
   BUILD_TYPE: "RelWithDebInfo"
 
   matrix:
-    - CMAKE_FLAGS: '-G "Visual Studio 14 2015" -T "v140_xp"'
-      QT_PACKAGE: qtbase-5.6.1-1-i686-win32-msvc2015-static-mt.7z
-    - CMAKE_FLAGS: '-G "Visual Studio 14 2015 Win64"'
-      QT_PACKAGE: qtbase-5.6.1-1-x86_64-win32-msvc2015-static-mt.7z
+    - CMAKE_FLAGS: '-G "Visual Studio 14 2015" -T "v140_xp" -DUSE_UNITY_BUILDS=ON'
+      QT_PACKAGE: qtbase-5.7.1-i686-win32-msvc2015-static-mt.7z
+    - CMAKE_FLAGS: '-G "Visual Studio 14 2015 Win64" -DUSE_UNITY_BUILDS=ON'
+      QT_PACKAGE: qtbase-5.7.1-x86_64-win32-msvc2015-static-mt.7z
 
 install:
-  - appveyor DownloadFile "https://bintray.com/artifact/download/koromix/ty/%QT_PACKAGE%"
+  - appveyor DownloadFile "https://bintray.com/artifact/download/koromix/tytools/%QT_PACKAGE%"
   - 7z x "%QT_PACKAGE%" >NUL
 
 before_build:
@@ -36,8 +30,12 @@ after_build:
 test: off
 
 artifacts:
-  - path: "*.msi"
-  - path: "*.zip"
+  - path: '*.msi'
+  - path: '*.zip'
+  - path: '$(BUILD_TYPE)\tycmd.pdb'
+  - path: '$(BUILD_TYPE)\TyCommander.pdb'
+  - path: '$(BUILD_TYPE)\TyCommanderC.pdb'
+  - path: '$(BUILD_TYPE)\TyUpdater.pdb'
 
 deploy:
   - provider: BinTray
@@ -45,13 +43,15 @@ deploy:
     api_key:
       secure: "SV8zwvJsQsGbojZy6Z8CHeRGmZse3AOoohPIiog2o5/6tH191ei3GakTEpHsfYe2"
     subject: koromix
-    repo: ty
-    package: ty
+    repo: tytools
+    package: tytools
     version: $(APPVEYOR_REPO_BRANCH)
     publish: true
+    artifact: /.*\.(zip|msi)/
   - provider: GitHub
     auth_token:
       secure: "cLGLqvqDP4MpJ0+skssc+alB65DtwvIgpdgEkEAvuYTm8YX4ZXYIsZe115DDbR2f"
     draft: true
     on:
       appveyor_repo_tag: true
+    artifact: /.*\.(zip|msi)/

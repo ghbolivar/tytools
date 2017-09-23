@@ -1,12 +1,15 @@
-/*
- * ty, a collection of GUI and command-line tools to manage Teensy devices
- *
- * Distributed under the MIT license (see LICENSE.txt or http://opensource.org/licenses/MIT)
- * Copyright (c) 2015 Niels Martignène <niels.martignene@gmail.com>
- */
+/* TyTools - public domain
+   Niels Martignène <niels.martignene@protonmail.com>
+   https://neodd.com/tytools
 
-#include "util.h"
-#include "firmware_priv.h"
+   This software is in the public domain. Where that dedication is not
+   recognized, you are granted a perpetual, irrevocable license to copy,
+   distribute, and modify this file as you see fit.
+
+   See the LICENSE file for more details. */
+
+#include "common_priv.h"
+#include "firmware.h"
 
 struct parser_context {
     ty_firmware *fw;
@@ -45,7 +48,7 @@ static uint16_t parse_hex_short(struct parser_context *ctx)
     return (uint16_t)((parse_hex_byte(ctx, true) << 8) | parse_hex_byte(ctx, true));
 }
 
-static int parse_error(struct parser_context *ctx)
+static int ihex_parse_error(struct parser_context *ctx)
 {
     return ty_error(TY_ERROR_PARSE, "IHEX parse error on line %u in '%s'", ctx->line,
                     ctx->fw->filename);
@@ -66,96 +69,102 @@ static int parse_line(struct parser_context *ctx, const char *line)
     if (*ctx->ptr++ != ':')
         return 0;
     if (strlen(ctx->ptr) < 11)
-        return parse_error(ctx);
+        return ihex_parse_error(ctx);
 
     length = parse_hex_byte(ctx, true);
     address = parse_hex_short(ctx);
     type = parse_hex_byte(ctx, true);
 
     if (ctx->error)
-        return parse_error(ctx);
+        return ihex_parse_error(ctx);
 
     switch (type) {
-    case 0: // data record
-        address += ctx->base_offset;
-        r = _ty_firmware_expand_image(ctx->fw, address + length);
-        if (r < 0)
-            return r;
-        for (unsigned int i = 0; i < length; i++)
-            ctx->fw->image[address + i] = parse_hex_byte(ctx, true);
-        break;
+        case 0: { // data record
+            address += ctx->base_offset;
+            r = ty_firmware_expand_image(ctx->fw, address + length);
+            if (r < 0)
+                return r;
+            for (unsigned int i = 0; i < length; i++)
+                ctx->fw->image[address + i] = parse_hex_byte(ctx, true);
+        } break;
 
-    case 1: // EOF record
-        if (length > 0)
-            return parse_error(ctx);
-        break;
+        case 1: { // EOF record
+            if (length > 0)
+                return ihex_parse_error(ctx);
+        } break;
 
-    case 2: // extended segment address record
-        if (length != 2)
-            return parse_error(ctx);
-        ctx->base_offset = (uint32_t)parse_hex_short(ctx) << 4;
-        break;
-    case 3: // start segment address record
-        break;
+        case 2: { // extended segment address record
+            if (length != 2)
+                return ihex_parse_error(ctx);
+            ctx->base_offset = (uint32_t)parse_hex_short(ctx) << 4;
+        } break;
+        case 3: { // start segment address record
+        } break;
 
-    case 4: // extended linear address record
-        if (length != 2)
-            return parse_error(ctx);
-        ctx->base_offset = (uint32_t)parse_hex_short(ctx) << 16;
-        break;
-    case 5: // start linear address record
-        break;
+        case 4: { // extended linear address record
+            if (length != 2)
+                return ihex_parse_error(ctx);
+            ctx->base_offset = (uint32_t)parse_hex_short(ctx) << 16;
+        } break;
+        case 5: { // start linear address record
+        } break;
 
-    default:
-        return parse_error(ctx);
+        default: {
+            return ihex_parse_error(ctx);
+        } break;
     }
 
     // Don't checksum the checksum :)
     checksum = parse_hex_byte(ctx, false);
 
     if (ctx->error)
-        return parse_error(ctx);
+        return ihex_parse_error(ctx);
     if (*ctx->ptr != '\r' && *ctx->ptr != '\n' && *ctx->ptr)
-        return parse_error(ctx);
+        return ihex_parse_error(ctx);
     if (((ctx->sum & 0xFF) + (checksum & 0xFF)) & 0xFF)
-        return parse_error(ctx);
+        return ihex_parse_error(ctx);
 
     // Return 1 for EOF records, to end the parsing
     return type == 1;
 }
 
-int _ty_firmware_load_ihex(ty_firmware *fw)
+int ty_firmware_load_ihex(const char *filename, ty_firmware **rfw)
 {
-    assert(fw);
+    assert(filename);
+    assert(rfw);
 
     struct parser_context ctx = {0};
     FILE *fp = NULL;
     char buf[1024];
     int r;
 
-    ctx.fw = fw;
+    r = ty_firmware_new(filename, &ctx.fw);
+    if (r < 0)
+        goto cleanup;
 
 #ifdef _WIN32
-    fp = fopen(fw->filename, "r");
+    fp = fopen(ctx.fw->filename, "r");
 #else
-    fp = fopen(fw->filename, "re");
+    fp = fopen(ctx.fw->filename, "re");
 #endif
     if (!fp) {
         switch (errno) {
-        case EACCES:
-            r = ty_error(TY_ERROR_ACCESS, "Permission denied for '%s'", fw->filename);
-            break;
-        case EIO:
-            r = ty_error(TY_ERROR_IO, "I/O error while opening '%s' for reading", fw->filename);
-            break;
-        case ENOENT:
-        case ENOTDIR:
-            r = ty_error(TY_ERROR_NOT_FOUND, "File '%s' does not exist", fw->filename);
-            break;
+            case EACCES: {
+                r = ty_error(TY_ERROR_ACCESS, "Permission denied for '%s'", ctx.fw->filename);
+            } break;
+            case EIO: {
+                r = ty_error(TY_ERROR_IO, "I/O error while opening '%s' for reading",
+                             ctx.fw->filename);
+            } break;
+            case ENOENT:
+            case ENOTDIR: {
+                r = ty_error(TY_ERROR_NOT_FOUND, "File '%s' does not exist", ctx.fw->filename);
+            } break;
 
-        default:
-            r = ty_error(TY_ERROR_SYSTEM, "fopen('%s') failed: %s", fw->filename, strerror(errno));
-            break;
+            default: {
+                r = ty_error(TY_ERROR_SYSTEM, "fopen('%s') failed: %s", ctx.fw->filename,
+                             strerror(errno));
+            } break;
         }
         goto cleanup;
     }
@@ -163,9 +172,9 @@ int _ty_firmware_load_ihex(ty_firmware *fw)
     do {
         if (!fgets(buf, sizeof(buf), fp)) {
             if (feof(fp)) {
-                r = parse_error(&ctx);
+                r = ihex_parse_error(&ctx);
             } else {
-                r = ty_error(TY_ERROR_IO, "I/O error while reading '%s'", fw->filename);
+                r = ty_error(TY_ERROR_IO, "I/O error while reading '%s'", ctx.fw->filename);
             }
             goto cleanup;
         }
@@ -177,9 +186,13 @@ int _ty_firmware_load_ihex(ty_firmware *fw)
             goto cleanup;
     } while (!r);
 
+    *rfw = ctx.fw;
+    ctx.fw = NULL;
+
     r = 0;
 cleanup:
     if (fp)
         fclose(fp);
+    ty_firmware_unref(ctx.fw);
     return r;
 }

@@ -7,7 +7,7 @@ init:
   - cmake -E remove c:\programdata\chocolatey\bin\cpack.exe
 
 environment:
-  CONFIG_VARIANT: "trichecked"
+  CONFIG_VARIANT: "canchecked"
   BUILD_TYPE: "RelWithDebInfo"
 
   matrix:

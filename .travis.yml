@@ -6,7 +6,7 @@ language: cpp
 
 env:
   global:
-    - CONFIG_VARIANT=trichecked
+    - CONFIG_VARIANT=canchecked
     - CMAKE_BUILD_TYPE=RelWithDebInfo
 matrix:
   include:

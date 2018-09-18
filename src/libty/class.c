@@ -41,7 +41,7 @@ const struct _ty_class _ty_classes[] = {
 const unsigned int _ty_classes_count = TY_COUNTOF(_ty_classes);
 
 static hs_match_spec default_match_specs[] = {
-    HS_MATCH_VID_PID(0x16C0, 0x0476, (void *)&_ty_teensy_class_vtable),
+    HS_MATCH_VID_PID(0x1d50, 0x60fc, (void *)&_ty_teensy_class_vtable),
     HS_MATCH_VID_PID(0x16C0, 0x0478, (void *)&_ty_teensy_class_vtable),
     HS_MATCH_VID_PID(0x16C0, 0x0482, (void *)&_ty_teensy_class_vtable),
     HS_MATCH_VID_PID(0x16C0, 0x0483, (void *)&_ty_teensy_class_vtable),
